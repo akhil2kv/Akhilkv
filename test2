@@ -1,0 +1,58 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        int batchSize = 100;
+
+        // BufferBlock to buffer incoming trades
+        var bufferBlock = new BufferBlock<Trade>();
+
+        // BatchBlock to batch trades into groups of 100
+        var batchBlock = new BatchBlock<Trade>(batchSize);
+
+        // ActionBlock to process each batch of trades
+        var actionBlock = new ActionBlock<Trade[]>(async trades =>
+        {
+            // Save trades to the database
+            await SaveTradesToDatabase(trades);
+        });
+
+        // Link the BufferBlock to the BatchBlock
+        bufferBlock.LinkTo(batchBlock, new DataflowLinkOptions { PropagateCompletion = true });
+
+        // Link the BatchBlock to the ActionBlock
+        batchBlock.LinkTo(actionBlock, new DataflowLinkOptions { PropagateCompletion = true });
+
+        // Post trades to the BufferBlock
+        for (int i = 0; i < 950; i++)
+        {
+            bufferBlock.Post(new Trade { Id = i, Value = $"Trade {i}" });
+        }
+
+        // Signal completion to the BufferBlock
+        bufferBlock.Complete();
+
+        // Await completion of the ActionBlock to ensure all trades are processed
+        await actionBlock.Completion;
+    }
+
+    // Method to simulate saving trades to the database
+    static Task SaveTradesToDatabase(Trade[] trades)
+    {
+        // Log the number of trades being saved
+        Console.WriteLine($"Saving batch of {trades.Length} trades to the database.");
+        return Task.CompletedTask;
+    }
+}
+
+// Trade class to represent a trade item
+class Trade
+{
+    public int Id { get; set; }
+    public string Value { get; set; }
+}
