@@ -1,0 +1,70 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+
+class Trade
+{
+    public int Id { get; set; }
+    public double Amount { get; set; }
+    // Add other properties as needed
+}
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        // Create a BufferBlock to hold individual trades
+        var bufferBlock = new BufferBlock<Trade>();
+
+        // Create a BatchBlock to group trades into batches of 5
+        var batchBlock1 = new BatchBlock<Trade>(5);
+
+        // Create an ActionBlock to process each batch of trades
+        var actionBlock1 = new ActionBlock<Trade[]>(batch =>
+        {
+            foreach (var trade in batch)
+            {
+                // Example manipulation: increase amount by 10%
+                trade.Amount *= 1.1;
+                Console.WriteLine($"Processed Trade {trade.Id}: New Amount = {trade.Amount}");
+            }
+        });
+
+        // Create another BatchBlock to group processed trades into batches of 3 for database storage
+        var batchBlock2 = new BatchBlock<Trade>(3);
+
+        // Create an ActionBlock to store each batch of processed trades in the database
+        var actionBlock2 = new ActionBlock<Trade[]>(batch =>
+        {
+            // Simulate storing in database
+            Console.WriteLine("Storing batch in database:");
+            foreach (var trade in batch)
+            {
+                Console.WriteLine($"Stored Trade {trade.Id}: Amount = {trade.Amount}");
+            }
+        });
+
+        // Link the blocks
+        bufferBlock.LinkTo(batchBlock1, new DataflowLinkOptions { PropagateCompletion = true });
+        batchBlock1.LinkTo(actionBlock1, new DataflowLinkOptions { PropagateCompletion = true });
+        actionBlock1.Completion.ContinueWith(_ => batchBlock2.Complete());
+        batchBlock2.LinkTo(actionBlock2, new DataflowLinkOptions { PropagateCompletion = true });
+
+        // Post trades to the BufferBlock
+        for (int i = 1; i <= 10; i++)
+        {
+            var trade = new Trade { Id = i, Amount = 100 * i };
+            await bufferBlock.SendAsync(trade);
+            Console.WriteLine($"Posted Trade {trade.Id}: Amount = {trade.Amount}");
+        }
+
+        // Signal completion of the BufferBlock
+        bufferBlock.Complete();
+
+        // Wait for the entire pipeline to complete
+        await actionBlock2.Completion;
+
+        Console.WriteLine("All trades processed and stored.");
+    }
+}
