@@ -1,0 +1,82 @@
+using System;
+using System.Collections.Generic;
+using System.Data.SqlClient;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+
+class Trade
+{
+    public int Id { get; set; }
+    public string Symbol { get; set; }
+    public int Quantity { get; set; }
+    public decimal Price { get; set; }
+}
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        // Define the BufferBlock to hold incoming trades
+        var bufferBlock = new BufferBlock<Trade>();
+
+        // Define the BatchBlock to batch trades into groups of 10
+        var batchBlock = new BatchBlock<Trade>(10);
+
+        // Define the ActionBlock to store batches of trades into the database
+        var actionBlock = new ActionBlock<Trade[]>(async trades =>
+        {
+            await StoreTradesInDatabase(trades);
+        });
+
+        // Link the blocks with options to propagate completion
+        bufferBlock.LinkTo(batchBlock, new DataflowLinkOptions { PropagateCompletion = true });
+        batchBlock.LinkTo(actionBlock, new DataflowLinkOptions { PropagateCompletion = true });
+
+        // Simulate posting trades to the BufferBlock
+        for (int i = 0; i < 100; i++)
+        {
+            var trade = new Trade
+            {
+                Id = i,
+                Symbol = "AAPL",
+                Quantity = i + 1,
+                Price = 150 + i * 0.1m
+            };
+            await bufferBlock.SendAsync(trade);
+            Console.WriteLine($"Posted trade {trade.Id}");
+        }
+
+        // Signal completion of the BufferBlock
+        bufferBlock.Complete();
+
+        // Wait for all processing to complete
+        await actionBlock.Completion;
+
+        Console.WriteLine("All trades processed and stored in database.");
+    }
+
+    // Example method to store trades in the database
+    static async Task StoreTradesInDatabase(IEnumerable<Trade> trades)
+    {
+        // Replace with your actual connection string
+        string connectionString = "your_connection_string_here";
+
+        using (var connection = new SqlConnection(connectionString))
+        {
+            await connection.OpenAsync();
+
+            foreach (var trade in trades)
+            {
+                var command = new SqlCommand("INSERT INTO Trades (Id, Symbol, Quantity, Price) VALUES (@Id, @Symbol, @Quantity, @Price)", connection);
+                command.Parameters.AddWithValue("@Id", trade.Id);
+                command.Parameters.AddWithValue("@Symbol", trade.Symbol);
+                command.Parameters.AddWithValue("@Quantity", trade.Quantity);
+                command.Parameters.AddWithValue("@Price", trade.Price);
+
+                await command.ExecuteNonQueryAsync();
+            }
+        }
+
+        Console.WriteLine("Stored batch of trades in database.");
+    }
+}
