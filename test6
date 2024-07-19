@@ -1,0 +1,95 @@
+using System;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+
+class Program
+{
+    static async Task Main(string[] args)
+    {
+        // Create a BufferBlock to hold the initial data
+        var bufferBlock = new BufferBlock<int>();
+
+        // Create ActionBlocks to process data from the BufferBlock
+        var actionBlock1 = new ActionBlock<int>(item =>
+        {
+            Console.WriteLine($"Processing in ActionBlock1: {item}");
+            // Simulate processing
+        });
+
+        var actionBlock2 = new ActionBlock<int>(item =>
+        {
+            Console.WriteLine($"Processing in ActionBlock2: {item}");
+            // Simulate processing
+        });
+
+        var actionBlock3 = new ActionBlock<int>(item =>
+        {
+            Console.WriteLine($"Processing in ActionBlock3: {item}");
+            // Simulate processing
+        });
+
+        // Create BatchBlocks to batch the processed data
+        var batchBlock1 = new BatchBlock<int>(5);
+        var batchBlock2 = new BatchBlock<int>(5);
+        var batchBlock3 = new BatchBlock<int>(5);
+
+        // Create ActionBlocks to store batched data in the database
+        var storeBlock1 = new ActionBlock<int[]>(batch =>
+        {
+            Console.WriteLine("Storing batch from ActionBlock1 in DB:");
+            foreach (var item in batch)
+            {
+                Console.WriteLine(item);
+            }
+            // Simulate storing in DB
+        });
+
+        var storeBlock2 = new ActionBlock<int[]>(batch =>
+        {
+            Console.WriteLine("Storing batch from ActionBlock2 in DB:");
+            foreach (var item in batch)
+            {
+                Console.WriteLine(item);
+            }
+            // Simulate storing in DB
+        });
+
+        var storeBlock3 = new ActionBlock<int[]>(batch =>
+        {
+            Console.WriteLine("Storing batch from ActionBlock3 in DB:");
+            foreach (var item in batch)
+            {
+                Console.WriteLine(item);
+            }
+            // Simulate storing in DB
+        });
+
+        // Link blocks
+        bufferBlock.LinkTo(actionBlock1);
+        bufferBlock.LinkTo(actionBlock2);
+        bufferBlock.LinkTo(actionBlock3);
+
+        actionBlock1.LinkTo(batchBlock1);
+        actionBlock2.LinkTo(batchBlock2);
+        actionBlock3.LinkTo(batchBlock3);
+
+        batchBlock1.LinkTo(storeBlock1);
+        batchBlock2.LinkTo(storeBlock2);
+        batchBlock3.LinkTo(storeBlock3);
+
+        // Post data to the BufferBlock
+        for (int i = 0; i < 15; i++)
+        {
+            bufferBlock.Post(i);
+        }
+
+        // Signal completion and wait for all blocks to process the data
+        bufferBlock.Complete();
+        await Task.WhenAll(actionBlock1.Completion, actionBlock2.Completion, actionBlock3.Completion);
+        batchBlock1.Complete();
+        batchBlock2.Complete();
+        batchBlock3.Complete();
+        await Task.WhenAll(storeBlock1.Completion, storeBlock2.Completion, storeBlock3.Completion);
+    }
+}
