@@ -1,0 +1,91 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Threading.Tasks.Dataflow;
+
+namespace DataflowPipelineExample
+{
+    class Program
+    {
+        static async Task Main(string[] args)
+        {
+            // Create a BufferBlock to receive trades
+            var bufferBlock = new BufferBlock<Trade>();
+
+            // Create TransformBlocks for processing trades
+            var transformBlock1 = CreateTransformBlock("Processor1");
+            var transformBlock2 = CreateTransformBlock("Processor2");
+            var transformBlock3 = CreateTransformBlock("Processor3");
+
+            // Create BatchBlocks to batch the processed trades
+            var batchBlock1 = new BatchBlock<Trade>(5); // Adjust batch size as needed
+            var batchBlock2 = new BatchBlock<Trade>(5);
+            var batchBlock3 = new BatchBlock<Trade>(5);
+
+            // Create ActionBlocks to store batches in the database
+            var actionBlock1 = CreateActionBlock("DB1");
+            var actionBlock2 = CreateActionBlock("DB2");
+            var actionBlock3 = CreateActionBlock("DB3");
+
+            // Link the blocks
+            bufferBlock.LinkTo(transformBlock1);
+            bufferBlock.LinkTo(transformBlock2);
+            bufferBlock.LinkTo(transformBlock3);
+
+            transformBlock1.LinkTo(batchBlock1);
+            transformBlock2.LinkTo(batchBlock2);
+            transformBlock3.LinkTo(batchBlock3);
+
+            batchBlock1.LinkTo(actionBlock1);
+            batchBlock2.LinkTo(actionBlock2);
+            batchBlock3.LinkTo(actionBlock3);
+
+            // Post trades to the BufferBlock
+            for (int i = 0; i < 15; i++)
+            {
+                bufferBlock.Post(new Trade { Id = i, Symbol = $"SYM{i}", Quantity = 100 + i });
+            }
+
+            // Signal completion
+            bufferBlock.Complete();
+
+            // Wait for completion of all blocks
+            await Task.WhenAll(actionBlock1.Completion, actionBlock2.Completion, actionBlock3.Completion);
+
+            Console.WriteLine("All trades processed and stored in database.");
+        }
+
+        private static TransformBlock<Trade, Trade> CreateTransformBlock(string processorName)
+        {
+            return new TransformBlock<Trade, Trade>(trade =>
+            {
+                Console.WriteLine($"{processorName} processing trade {trade.Id}");
+                // Process trade (simulate processing)
+                trade.ProcessedBy = processorName;
+                return trade;
+            });
+        }
+
+        private static ActionBlock<Trade[]> CreateActionBlock(string databaseName)
+        {
+            return new ActionBlock<Trade[]>(batch =>
+            {
+                Console.WriteLine($"{databaseName} storing batch of {batch.Length} trades");
+                // Simulate storing in database
+                foreach (var trade in batch)
+                {
+                    Console.WriteLine($"Stored trade {trade.Id} processed by {trade.ProcessedBy}");
+                }
+            });
+        }
+    }
+
+    class Trade
+    {
+        public int Id { get; set; }
+        public string Symbol { get; set; }
+        public int Quantity { get; set; }
+        public string ProcessedBy { get; set; }
+    }
+}
