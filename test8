@@ -1,0 +1,83 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
+
+namespace FilePatternProcessor
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            // Configuration parameters
+            string directoryPath = @"C:\Path\To\Your\Files"; // Change this to your Windows directory path
+            string filePattern = @"RKN_(.+)_ACCRUAL\.txt";
+            // Prefix will include the current date in yyyyMMdd format
+            string processedPrefix = $"PROCESSED_{DateTime.Now.ToString("yyyyMMdd")}_";
+            List<string> entities = new List<string> { "ENTITY1", "ENTITY2", "ENTITY3" }; // Add your entities here
+            
+            try
+            {
+                // Process the files
+                int processedCount = ProcessFiles(directoryPath, filePattern, processedPrefix, entities);
+                Console.WriteLine($"Processing complete. Renamed {processedCount} files.");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"An error occurred: {ex.Message}");
+            }
+        }
+
+        static int ProcessFiles(string directoryPath, string filePattern, string processedPrefix, List<string> entities)
+        {
+            if (!Directory.Exists(directoryPath))
+            {
+                throw new DirectoryNotFoundException($"Directory not found: {directoryPath}");
+            }
+
+            Console.WriteLine($"Searching for files in: {directoryPath}");
+            Console.WriteLine($"Using pattern: {filePattern}");
+
+            // Initialize regex for pattern matching
+            Regex regex = new Regex(filePattern);
+            
+            // Counter for processed files
+            int processedCount = 0;
+            
+            // Enumerate files rather than loading all into memory
+            foreach (var file in Directory.EnumerateFiles(directoryPath, "*.txt"))
+            {
+                string fileName = Path.GetFileName(file);
+                Match match = regex.Match(fileName);
+                
+                if (match.Success && match.Groups.Count > 1)
+                {
+                    string entityInFileName = match.Groups[1].Value;
+                    
+                    // Check if the entity in the file name is in our list
+                    if (entities.Contains(entityInFileName))
+                    {
+                        string directory = Path.GetDirectoryName(file);
+                        string newFileName = processedPrefix + fileName;
+                        string newFilePath = Path.Combine(directory, newFileName);
+                        
+                        // Check if the processed file already exists
+                        if (File.Exists(newFilePath))
+                        {
+                            Console.WriteLine($"Warning: {newFileName} already exists. Skipping {fileName}.");
+                            continue;
+                        }
+                        
+                        // Rename the file
+                        File.Move(file, newFilePath);
+                        Console.WriteLine($"Renamed: {fileName} -> {newFileName}");
+                        processedCount++;
+                    }
+                }
+            }
+            
+            return processedCount;
+        }
+    }
+}
