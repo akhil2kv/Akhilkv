@@ -1,46 +1,140 @@
 using System;
 using System.Collections.Generic;
-using System.Threading.Tasks;
-using System.Threading.Tasks.Dataflow;
+using System.IO;
+using System.Linq;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
-class Program
+namespace FilePatternProcessor.Tests
 {
-    static async Task Main(string[] args)
+    [TestClass]
+    public class FileProcessorTests
     {
-        int batchSize = 100;
-        var bufferBlock = new BufferBlock<Trade>();
-        var batchBlock = new BatchBlock<Trade>(batchSize);
-        var actionBlock = new ActionBlock<Trade[]>(async trades =>
-        {
-            // Save trades to the database
-            await SaveTradesToDatabase(trades);
-        });
+        private string _testDir;
+        private List<string> _testEntities;
+        private List<string> _createdFiles;
 
-        // Link the blocks
-        bufferBlock.LinkTo(batchBlock, new DataflowLinkOptions { PropagateCompletion = true });
-        batchBlock.LinkTo(actionBlock, new DataflowLinkOptions { PropagateCompletion = true });
-
-        // Post trades to the buffer block
-        for (int i = 0; i < 950; i++)
+        [TestInitialize]
+        public void TestInitialize()
         {
-            bufferBlock.Post(new Trade { Id = i, Value = $"Trade {i}" });
+            // Create a temporary directory for testing
+            _testDir = Path.Combine(Path.GetTempPath(), "FileProcessorTests_" + Guid.NewGuid().ToString());
+            Directory.CreateDirectory(_testDir);
+
+            // Test entities
+            _testEntities = new List<string> { "ENTITY1", "ENTITY2", "ENTITY3" };
+            
+            // Keep track of created files to clean up later
+            _createdFiles = new List<string>();
+            
+            // Create test files
+            CreateTestFiles();
         }
 
-        // Signal completion
-        bufferBlock.Complete();
-        await actionBlock.Completion;
-    }
+        [TestCleanup]
+        public void TestCleanup()
+        {
+            // Clean up test files
+            foreach (var file in _createdFiles)
+            {
+                if (File.Exists(file))
+                {
+                    File.Delete(file);
+                }
+            }
 
-    static Task SaveTradesToDatabase(Trade[] trades)
-    {
-        // Simulate saving to the database
-        Console.WriteLine($"Saving batch of {trades.Length} trades to the database.");
-        return Task.CompletedTask;
-    }
-}
+            // Remove test directory
+            if (Directory.Exists(_testDir))
+            {
+                Directory.Delete(_testDir, true);
+            }
+        }
 
-class Trade
-{
-    public int Id { get; set; }
-    public string Value { get; set; }
-}
+        [TestMethod]
+        public void ProcessFiles_MatchingFiles_RenamesToAddDateSuffix()
+        {
+            // Arrange
+            string dateSuffix = $"_{DateTime.Now.ToString("yyyyMMdd")}";
+            
+            // Act
+            int processedCount = FileProcessor.ProcessFiles(_testDir, _testEntities);
+            
+            // Assert
+            Assert.AreEqual(3, processedCount, "Should process 3 matching files");
+            
+            // Check if files were renamed correctly
+            foreach (var entity in _testEntities)
+            {
+                string originalFileName = $"RKN_{entity}_ACCRUAL.txt";
+                string expectedNewFileName = $"RKN_{entity}_ACCRUAL{dateSuffix}.txt";
+                
+                Assert.IsFalse(File.Exists(Path.Combine(_testDir, originalFileName)), 
+                    $"Original file {originalFileName} should not exist after processing");
+                
+                Assert.IsTrue(File.Exists(Path.Combine(_testDir, expectedNewFileName)), 
+                    $"Renamed file {expectedNewFileName} should exist after processing");
+            }
+        }
+
+        [TestMethod]
+        public void ProcessFiles_NonMatchingFiles_DoesNotRename()
+        {
+            // Arrange
+            string nonMatchingFile1 = Path.Combine(_testDir, "OTHER_RKN_ENTITY1_ACCRUAL.txt");
+            string nonMatchingFile2 = Path.Combine(_testDir, "RKN_ENTITY4_ACCRUAL.txt");
+            
+            File.WriteAllText(nonMatchingFile1, "Test content");
+            File.WriteAllText(nonMatchingFile2, "Test content");
+            
+            _createdFiles.Add(nonMatchingFile1);
+            _createdFiles.Add(nonMatchingFile2);
+            
+            // Act
+            int processedCount = FileProcessor.ProcessFiles(_testDir, _testEntities);
+            
+            // Assert
+            Assert.AreEqual(3, processedCount, "Should only process the 3 matching files");
+            
+            // Check if non-matching files were not renamed
+            Assert.IsTrue(File.Exists(nonMatchingFile1), "Non-matching file 1 should not be renamed");
+            Assert.IsTrue(File.Exists(nonMatchingFile2), "Non-matching file 2 should not be renamed");
+        }
+
+        [TestMethod]
+        public void ProcessFiles_EmptyDirectory_ProcessesNoFiles()
+        {
+            // Arrange
+            string emptyDir = Path.Combine(_testDir, "EmptyDir");
+            Directory.CreateDirectory(emptyDir);
+            
+            // Act
+            int processedCount = FileProcessor.ProcessFiles(emptyDir, _testEntities);
+            
+            // Assert
+            Assert.AreEqual(0, processedCount, "Should process 0 files in empty directory");
+        }
+
+        [TestMethod]
+        public void ProcessFiles_NullEntities_ThrowsArgumentNullException()
+        {
+            // Act & Assert
+            Assert.ThrowsException<ArgumentNullException>(() => FileProcessor.ProcessFiles(_testDir, null));
+        }
+
+        private void CreateTestFiles()
+        {
+            // Create matching files
+            foreach (var entity in _testEntities)
+            {
+                string fileName = $"RKN_{entity}_ACCRUAL.txt";
+                string filePath = Path.Combine(_testDir, fileName);
+                
+                File.WriteAllText(filePath, $"Test content for {entity}");
+                _createdFiles.Add(filePath);
+            }
+            
+            // Create a non-matching file with similar pattern
+            string nonMatchingFile = Path.Combine(_testDir, "RKN_OTHER_FILE.txt");
+            File.WriteAllText(nonMatchingFile, "Test content for non-matching file");
+            _createdFiles.Add(nonMatchingFile);
+        }
+    }
