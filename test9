@@ -1,0 +1,72 @@
+using System;
+using System.IO;
+using Xunit;
+using Sgcib.XOne.Batch.CashLoan.Accounting;
+
+namespace Sgcib.XOne.Batch.CashLoan.Tests
+{
+    public class CashLoanInvalidateOldValuationFilesBatchSimpleTest
+    {
+        [Fact]
+        public void ProcessFile_CreatesAndRenamesFile_Success()
+        {
+            // Arrange
+            string testDir = Path.Combine(Path.GetTempPath(), "ValuationTest");
+            string testEntity = "TEST_ENTITY";
+            string testFileName = $"{testEntity}_valuation.txt";
+            string testFilePath = Path.Combine(testDir, testFileName);
+            
+            try
+            {
+                // Setup test directory and file
+                Directory.CreateDirectory(testDir);
+                File.WriteAllText(testFilePath, "Test content");
+                
+                // Create batch instance
+                var batch = new TestCashLoanInvalidateOldValuationFilesBatch();
+                batch.TestDirectoryPath = testDir;
+                batch.TestFilePattern = "*_valuation.txt";
+                
+                // Act
+                batch.ExecuteBatch();
+                
+                // Assert
+                string expectedPrefix = $"PROCESSED_{DateTime.Now:yyyyMMdd}";
+                string expectedFileName = $"{expectedPrefix}_{testFileName}";
+                string expectedFilePath = Path.Combine(testDir, expectedFileName);
+                
+                Assert.False(File.Exists(testFilePath), "Original file should not exist");
+                Assert.True(File.Exists(expectedFilePath), "Processed file should exist");
+            }
+            finally
+            {
+                // Cleanup
+                if (Directory.Exists(testDir))
+                {
+                    Directory.Delete(testDir, true);
+                }
+            }
+        }
+    }
+
+    // Test implementation of the batch class that allows setting test values
+    private sealed class TestCashLoanInvalidateOldValuationFilesBatch : CashLoanInvalidateOldValuationFilesBatch
+    {
+        public string TestDirectoryPath { get; set; }
+        public string TestFilePattern { get; set; }
+        public string TestProcessedPrefix { get; set; } = $"PROCESSED_{DateTime.Now:yyyyMMdd}";
+        
+        // Override protected properties to return our test values
+        protected override string DirectoryPath => TestDirectoryPath;
+        
+        protected override string FilePattern => TestFilePattern;
+        
+        protected override string ProcessedPrefix => TestProcessedPrefix;
+        
+        public override void ExecuteBatch()
+        {
+            // Simply call the base implementation which will use our overridden properties
+            base.Execute();
+        }
+    }
+}
