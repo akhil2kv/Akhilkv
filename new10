@@ -1,3 +1,6 @@
 =IFERROR(IF(AND(INDEX($F:$F,MATCH(B2,$F:$F,0))=B2,INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,INDEX($H:$H,MATCH(B2,$F:$F,0))=D2,INDEX($I:$I,MATCH(B2,$F:$F,0))=E2),"Same","Different"),"Not Found")
 
 =IFERROR(IF(AND(INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,INDEX($H:$H,MATCH(B2,$F:$F,0))=D2,INDEX($I:$I,MATCH(B2,$F:$F,0))=E2),"Same",CONCATENATE(IF(INDEX($G:$G,MATCH(B2,$F:$F,0))<>C2,"flow ",""),IF(INDEX($H:$H,MATCH(B2,$F:$F,0))<>D2,"amount ",""),IF(INDEX($I:$I,MATCH(B2,$F:$F,0))<>E2,"cur ",""))),"Not Found")
+
+
+=IFERROR(IF(INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,"Same",INDEX($H:$H,MATCH(B2,$F:$F,0))),"Not
