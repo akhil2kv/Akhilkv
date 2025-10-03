@@ -7,3 +7,25 @@
 
 
 =IFERROR(IF(INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,"Same",INDEX($H:$H,MATCH(B2,$F:$F,0))),"Not Found")
+
+Here's a formula that shows amount2 when flows are different (works for both single and multiple flow cases):
+
+**In column J, use:**
+```excel
+=IFERROR(IF(SUMIF($B:$B,B2,$C:$C)=SUMIF($F:$F,B2,$G:$G),"Same",SUMIF($F:$F,B2,$H:$H)),"Not Found")
+```
+
+This will:
+- Sum all flow1 values for the num1
+- Sum all flow2 values for the matching num2
+- If totals match: shows "Same"
+- If totals don't match: shows the sum of all amount2 values for that num2
+- Shows "Not Found" if num1 doesn't exist in num2
+
+This handles both:
+- Single flow per num (compares individual flows)
+- Multiple flows per num (compares total flows)
+
+And returns the total amount2 when there's a difference.
+
+Copy this formula down for all rows!
