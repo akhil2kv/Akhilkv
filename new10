@@ -4,3 +4,6 @@
 
 
 =IFERROR(IF(INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,"Same",INDEX($H:$H,MATCH(B2,$F:$F,0))),"Not
+
+
+=IFERROR(IF(INDEX($G:$G,MATCH(B2,$F:$F,0))=C2,"Same",INDEX($H:$H,MATCH(B2,$F:$F,0))),"Not Found")
